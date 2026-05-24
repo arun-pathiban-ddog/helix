@@ -12,6 +12,8 @@
 
 /// Allocator statistics endpoint (jemalloc stats over TCP).
 pub mod alloc_stats;
+/// DogStatsD metrics export to a node-local Datadog Agent (see ADR-0007).
+pub mod metrics;
 /// Kafka admin gRPC service (kafkaadmin.Resources on port 8090).
 pub mod admin_grpc;
 /// Controller partition for cluster metadata coordination.

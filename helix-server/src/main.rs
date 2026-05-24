@@ -732,6 +732,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // For Kafka mode, wrap service in Arc for sharing.
             let service = Arc::new(service);
 
+            // Sample replication lag every 10s and emit it to Datadog via
+            // DogStatsD. No-op when metrics export is disabled.
+            Arc::clone(&service).spawn_replication_lag_sampler(10);
+
             // Spawn admin gRPC server if --admin-addr is specified.
             if let Some(admin_addr) = args.admin_addr {
                 let admin_svc = Arc::clone(&service);

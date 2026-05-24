@@ -136,6 +136,18 @@ impl<S: Storage + Clone + Send + Sync + 'static, T: TransportService> HelixServi
                 })?
         };
 
+        // Commit latency = propose -> applied. Emitted on every success path via
+        // this closure so the metric covers single-node fast path and multi-node
+        // alike. No-op when DogStatsD export is disabled.
+        let propose_start = std::time::Instant::now();
+        let emit_commit_latency = || {
+            self.metrics.histogram(
+                crate::metrics::METRIC_COMMIT_LATENCY_MS,
+                propose_start.elapsed().as_secs_f64() * 1000.0,
+                &[("topic", request.topic.as_str())],
+            );
+        };
+
         // In single-node mode, the commit happens synchronously and the CommitEntry
         // is returned in outputs. We need to apply entries in order, so if our
         // entry isn't next in line, we wait and retry until it is.
@@ -194,6 +206,7 @@ impl<S: Storage + Clone + Send + Sync + 'static, T: TransportService> HelixServi
                         last_applied = last_applied.get(),
                         "Entry already applied"
                     );
+                    emit_commit_latency();
                     return Ok(WriteResponse {
                         base_offset: ps.log_end_offset().get(),
                         record_count: record_count as u32,
@@ -206,6 +219,7 @@ impl<S: Storage + Clone + Send + Sync + 'static, T: TransportService> HelixServi
                     // It's our turn to apply.
                     match ps.apply_entry_async(proposed_index, entry_term, &entry_meta, &entry_payload).await {
                         Ok(Some(offset)) => {
+                            emit_commit_latency();
                             return Ok(WriteResponse {
                                 base_offset: offset.get(),
                                 record_count: record_count as u32,
@@ -214,6 +228,7 @@ impl<S: Storage + Clone + Send + Sync + 'static, T: TransportService> HelixServi
                             })
                         }
                         Ok(None) => {
+                            emit_commit_latency();
                             return Ok(WriteResponse {
                                 base_offset: ps.log_end_offset().get(),
                                 record_count: record_count as u32,
@@ -298,6 +313,7 @@ impl<S: Storage + Clone + Send + Sync + 'static, T: TransportService> HelixServi
         #[allow(clippy::cast_possible_truncation)]
         let record_count_u32 = record_count as u32;
 
+        emit_commit_latency();
         Ok(WriteResponse {
             base_offset: base_offset.get(),
             record_count: record_count_u32,

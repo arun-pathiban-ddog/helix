@@ -1101,6 +1101,8 @@ pub struct HelixService<
     /// Local disk retention in milliseconds.
     /// `None` means retention is disabled (segments kept forever).
     pub(crate) local_retention_ms: Option<u64>,
+    /// `DogStatsD` metrics exporter (no-op when `DD_AGENT_HOST` is unset).
+    pub(crate) metrics: crate::metrics::Metrics,
 }
 
 /// Type alias for production Helix service using `TokioStorage` and `TransportHandle`.
@@ -1356,9 +1358,12 @@ impl<S: Storage + Clone + Send + Sync + 'static> HelixService<S> {
         // - Production: spawn tick task using the returned shutdown_rx
         // - DST: don't spawn, test harness handles ticking manually
 
+        let metrics = crate::metrics::Metrics::from_env(node_id.get(), &cluster_id);
+
         let service = Self {
             cluster_id,
             node_id,
+            metrics,
             multi_raft,
             partition_storage,
             storage,
@@ -1956,8 +1961,11 @@ impl<S: Storage + Clone + Send + Sync + 'static> HelixService<S> {
         let mut peer_addrs = kafka_peer_addrs;
         peer_addrs.insert(node_id, kafka_addr);
 
+        let metrics = crate::metrics::Metrics::from_env(node_id.get(), &cluster_id);
+
         Ok(Self {
             cluster_id,
+            metrics,
             node_id,
             multi_raft,
             partition_storage,
@@ -2144,6 +2152,7 @@ impl<S: Storage + Clone + Send + Sync + 'static, T: TransportService> HelixServi
         Self {
             cluster_id,
             node_id,
+            metrics: crate::metrics::Metrics::disabled(),
             multi_raft,
             partition_storage,
             storage,
@@ -2391,6 +2400,55 @@ impl<S: Storage + Clone + Send + Sync + 'static, T: TransportService> HelixServi
     #[must_use]
     pub fn cluster_id(&self) -> &str {
         &self.cluster_id
+    }
+
+    /// Spawns a background task that periodically samples replication lag and
+    /// emits it as a `DogStatsD` gauge (`helix.replication.lag`).
+    ///
+    /// Lag is measured per Raft group as `commit_index - last_applied`: how far
+    /// this node's applied state trails its committed log. The sampler runs for
+    /// the process lifetime at a fixed cadence and is a cheap no-op when metrics
+    /// export is disabled (no `DD_AGENT_HOST`), so callers can spawn it
+    /// unconditionally.
+    ///
+    /// This lives at the server I/O boundary (production `tokio` timer) and is
+    /// never invoked from the deterministic simulation core.
+    pub fn spawn_replication_lag_sampler(self: Arc<Self>, interval_secs: u64) {
+        // Skip the task entirely when export is disabled to avoid a pointless
+        // timer waking the runtime every interval.
+        if !self.metrics.is_enabled() {
+            return;
+        }
+        // Bound the cadence to a sane range (TigerStyle: limit on everything).
+        let secs = interval_secs.clamp(1, 3600);
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(std::time::Duration::from_secs(secs));
+            loop {
+                ticker.tick().await;
+                let group_ids = {
+                    let mr = self.multi_raft.read().await;
+                    mr.group_ids()
+                };
+                for group_id in group_ids {
+                    let info = {
+                        let mr = self.multi_raft.read().await;
+                        mr.group_state(group_id)
+                    };
+                    if let Some(info) = info {
+                        let lag = info
+                            .commit_index
+                            .get()
+                            .saturating_sub(info.last_applied.get());
+                        #[allow(clippy::cast_precision_loss)]
+                        self.metrics.gauge(
+                            crate::metrics::METRIC_REPLICATION_LAG,
+                            lag as f64,
+                            &[("group", &group_id.get().to_string())],
+                        );
+                    }
+                }
+            }
+        });
     }
 
     /// Returns the cluster nodes.
@@ -2786,6 +2844,7 @@ impl<S: Storage + Clone + Send + Sync + 'static, T: TransportService> HelixServi
         Self {
             cluster_id,
             node_id,
+            metrics: crate::metrics::Metrics::disabled(),
             multi_raft,
             partition_storage,
             storage,

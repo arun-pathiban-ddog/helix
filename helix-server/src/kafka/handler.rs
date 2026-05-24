@@ -574,13 +574,24 @@ impl<S: Storage + Clone + Send + Sync + 'static, T: TransportService> KafkaHandl
                 #[allow(clippy::cast_possible_truncation)]
                 let (base_offset, error_code) = if record_count > 0 {
                     if let Some(data) = records_bytes {
-                        self.produce_with_auto_create(
-                            &topic_name,
-                            partition_id,
-                            record_count as u32,
-                            data.clone(),
-                        )
-                        .await
+                        // Time the produce path (append + Raft commit) and emit the
+                        // result as a DogStatsD distribution so Datadog computes
+                        // p50/p95/p99 across all nodes. No-op when export is disabled.
+                        let produce_start = std::time::Instant::now();
+                        let result = self
+                            .produce_with_auto_create(
+                                &topic_name,
+                                partition_id,
+                                record_count as u32,
+                                data.clone(),
+                            )
+                            .await;
+                        self.service.metrics.histogram(
+                            crate::metrics::METRIC_PRODUCE_LATENCY_MS,
+                            produce_start.elapsed().as_secs_f64() * 1000.0,
+                            &[("topic", topic_name.as_str())],
+                        );
+                        result
                     } else {
                         (self.get_log_end_offset(&topic_name, partition_id).await, 0)
                     }
