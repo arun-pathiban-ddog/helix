@@ -45,7 +45,7 @@ pub use wal_storage::WalStorage;
 /// Raft configuration limits.
 pub mod limits {
     /// Maximum number of entries in a single `AppendEntries` request.
-    pub const APPEND_ENTRIES_BATCH_SIZE_MAX: u32 = 1000;
+    pub const APPEND_ENTRIES_BATCH_SIZE_MAX: u32 = 500;
 
     /// Maximum number of in-flight `AppendEntries` per follower.
     ///
