@@ -81,7 +81,7 @@ impl Default for BatcherConfig {
         let linger_ms = std::env::var("HELIX_BATCHER_LINGER_MS")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(17);
+            .unwrap_or(21);
 
         Self {
             // 1ms minimal linger: clients already batch, so server-side linger
