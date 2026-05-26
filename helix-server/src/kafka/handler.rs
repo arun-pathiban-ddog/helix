@@ -807,6 +807,14 @@ impl<S: Storage + Clone + Send + Sync + 'static, T: TransportService> KafkaHandl
     /// Handle Fetch request.
     #[allow(clippy::too_many_lines)]
     async fn handle_fetch(&self, request: &DecodedRequest) -> KafkaResult<BytesMut> {
+        // Server-side consume metrics: time the whole Fetch and count records
+        // returned, per topic. This counts EVERY consumer (governed or not) —
+        // the consume-side counterpart to the produce metric. No-op when the
+        // exporter is disabled.
+        let fetch_start = std::time::Instant::now();
+        let mut consumed_by_topic: std::collections::BTreeMap<String, u64> =
+            std::collections::BTreeMap::new();
+
         let mut body = request.body.clone();
         let fetch_request =
             FetchRequest::decode(&mut body, request.api_version).map_err(KafkaError::decode)?;
@@ -944,6 +952,15 @@ impl<S: Storage + Clone + Send + Sync + 'static, T: TransportService> KafkaHandl
                                 total_bytes,
                                 "Fetched records"
                             );
+                            // Count RECORDS returned to the consumer (per topic) —
+                            // each blob is a RecordBatch holding many records, so
+                            // decode the per-batch count (same as the produce path)
+                            // rather than counting batches, to stay symmetric with
+                            // helix.produce.latency_ms.
+                            let records_returned: u64 =
+                                blobs.iter().map(count_records_in_batch).sum();
+                            *consumed_by_topic.entry(topic_name.clone()).or_insert(0) +=
+                                records_returned;
                         }
                     }
                     Err(crate::ServerError::NotLeader { .. }) => {
@@ -1004,6 +1021,32 @@ impl<S: Storage + Clone + Send + Sync + 'static, T: TransportService> KafkaHandl
             }
 
             response.responses.push(topic_response);
+        }
+
+        // Emit consume metrics, mirroring the produce path (which is proven to
+        // flow): a per-topic record count, and the Fetch-serve latency tagged by
+        // the same topic. We only emit for topics that actually returned data —
+        // empty long-poll Fetches (max_wait timeouts) would otherwise hammer a
+        // single un-tagged latency series thousands of times per flush, which the
+        // DogStatsD agent drops. Tagging by topic keeps the series symmetric with
+        // helix.produce.latency_ms and avoids that collapse.
+        let fetch_ms = fetch_start.elapsed().as_secs_f64() * 1000.0;
+        for (topic, n) in &consumed_by_topic {
+            if *n > 0 {
+                // Precision-safe: a per-fetch record count is far below 2^52.
+                #[allow(clippy::cast_precision_loss)]
+                let count = *n as f64;
+                self.service.metrics.count(
+                    crate::metrics::METRIC_CONSUME_FETCHED,
+                    count,
+                    &[("topic", topic.as_str())],
+                );
+                self.service.metrics.histogram(
+                    crate::metrics::METRIC_CONSUME_FETCH_LATENCY_MS,
+                    fetch_ms,
+                    &[("topic", topic.as_str())],
+                );
+            }
         }
 
         codec::encode_response(

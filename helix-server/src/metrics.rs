@@ -44,6 +44,16 @@ pub const METRIC_COMMIT_LATENCY_MS: &str = "helix.commit.latency_ms";
 /// Metric name: leader commit index minus follower apply index (entries).
 pub const METRIC_REPLICATION_LAG: &str = "helix.replication.lag";
 
+/// Metric name: records returned to a consumer per Fetch (count).
+///
+/// Server-side, so it counts EVERY consumer's reads — governed workloads and
+/// any other Kafka client alike — the consume-side counterpart to
+/// `helix.produce.latency_ms`.
+pub const METRIC_CONSUME_FETCHED: &str = "helix.consume.fetched";
+
+/// Metric name: time to serve a Fetch request, in ms (server-side).
+pub const METRIC_CONSUME_FETCH_LATENCY_MS: &str = "helix.consume.fetch_latency_ms";
+
 /// Maximum bytes for a single `DogStatsD` datagram.
 ///
 /// `DogStatsD` over UDP fits comfortably within one packet for our metric
@@ -160,6 +170,11 @@ impl Metrics {
     /// Records a gauge value (e.g. current replication lag in entries).
     pub fn gauge(&self, name: &str, value: f64, extra_tags: &[(&str, &str)]) {
         self.emit(name, value, 'g', extra_tags);
+    }
+
+    /// Increments a counter by `value` (`DogStatsD` `|c`), e.g. records consumed.
+    pub fn count(&self, name: &str, value: f64, extra_tags: &[(&str, &str)]) {
+        self.emit(name, value, 'c', extra_tags);
     }
 
     /// Formats and sends one datagram. No-op when disabled.
