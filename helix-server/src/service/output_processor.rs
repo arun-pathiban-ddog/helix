@@ -131,7 +131,7 @@ pub async fn output_processor_task<
     node_id: Option<NodeId>,
     leader_update_tx: Option<mpsc::UnboundedSender<ControllerCommand>>,
 ) {
-    const DRAIN_BATCH_LIMIT: usize = 256;
+    const DRAIN_BATCH_LIMIT: usize = 1024;
 
     info!("Output processor started");
 
