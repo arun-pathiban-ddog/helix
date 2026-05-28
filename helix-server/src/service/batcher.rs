@@ -50,7 +50,10 @@ use super::{BatchPendingProposal, BatcherStats};
 /// Maximum number of pending requests before rejecting new ones.
 /// This prevents unbounded queuing that leads to commit latency explosion.
 /// NOTE: Counters are decremented at commit time, so this limits total in-flight.
-const MAX_PENDING_REQUESTS: u64 = 2000;
+/// Increased from 2000 to 4000 to allow deeper queueing through the Raft consensus
+/// pipeline, improving throughput under high load. MAX_PENDING_BYTES (100MB) still
+/// provides a memory ceiling.
+const MAX_PENDING_REQUESTS: u64 = 4000;
 
 /// Maximum total bytes pending before rejecting new requests.
 /// 100MB allows higher throughput while still preventing Raft saturation.
