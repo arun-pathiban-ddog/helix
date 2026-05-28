@@ -720,7 +720,7 @@ pub struct PartitionActorConfig {
 impl Default for PartitionActorConfig {
     fn default() -> Self {
         Self {
-            channel_buffer_size: 1000,
+            channel_buffer_size: 4000,
         }
     }
 }
