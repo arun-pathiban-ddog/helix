@@ -78,7 +78,7 @@ pub mod limits {
     /// This is a secondary limit; the primary bound is `LOG_TRAILING_BYTES_MAX_DEFAULT`.
     /// At typical entry sizes both limits fire together, but the bytes limit is
     /// the effective guard against OOM at high throughput.
-    pub const LOG_TRAILING_ENTRIES_DEFAULT: u64 = 1_000;
+    pub const LOG_TRAILING_ENTRIES_DEFAULT: u64 = 5_000;
 
     /// Default maximum bytes of entries to retain in the in-memory Raft log.
     ///
