@@ -53,9 +53,9 @@ use super::{BatchPendingProposal, BatcherStats};
 const MAX_PENDING_REQUESTS: u64 = 2000;
 
 /// Maximum total bytes pending before rejecting new requests.
-/// 100MB allows higher throughput while still preventing Raft saturation.
+/// 200MB allows higher throughput while still preventing Raft saturation.
 /// NOTE: Counters are decremented at commit time, so this limits total in-flight.
-const MAX_PENDING_BYTES: u64 = 100 * 1024 * 1024;
+const MAX_PENDING_BYTES: u64 = 200 * 1024 * 1024;
 
 // =============================================================================
 // Configuration
