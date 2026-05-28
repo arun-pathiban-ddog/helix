@@ -61,7 +61,7 @@ helix-wal/src/wal.rs      ← active.file.sync().await block is INVARIANT (see b
 Pattern: .unwrap_or(<N>)  in the HELIX_BATCHER_LINGER_MS env-var read
 Effect:  lower → less produce latency; higher → more throughput via coalescing
 Range:   1 ms (floor) to ~50 ms (beyond which burst throughput plateaus)
-Current: read by live loop via genome.read_from_source()
+Current: 2 ms (champion: evolve(latency s1.v0))
 ```
 
 ### 2. MAX_INFLIGHT_APPEND_ENTRIES — `helix-raft/src/lib.rs`
@@ -186,3 +186,9 @@ leave `edits` empty, and populate `control_plane`:
 
 Only ONE cohesive change per response. If you propose a code change, make it
 minimal and targeted — do not refactor unrelated code.
+
+---
+
+## Champion History
+
+- Stage 1 (latency): evolve(latency s1.v0): Reduced batcher default linger_ms from 9ms to 2ms in BatcherConfig::default() to decrease tail latency by cutting worst-case batching delay by 7ms → +97.5%
