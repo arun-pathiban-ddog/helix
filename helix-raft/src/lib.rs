@@ -52,7 +52,9 @@ pub mod limits {
     /// Similar to Kafka's `max.in.flight.requests.per.connection`.
     /// Pipelining improves throughput by allowing the leader to send
     /// multiple `AppendEntries` without waiting for each response.
-    pub const MAX_INFLIGHT_APPEND_ENTRIES: u32 = 5;
+    /// Higher values (15+) allow deeper pipelining to saturate network
+    /// bandwidth during replication at the cost of more memory for tracking.
+    pub const MAX_INFLIGHT_APPEND_ENTRIES: u32 = 15;
 
     /// Maximum number of nodes in a cluster.
     pub const CLUSTER_SIZE_MAX: usize = 7;
