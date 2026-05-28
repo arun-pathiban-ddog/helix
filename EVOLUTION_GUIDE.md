@@ -69,6 +69,7 @@ Current: 2 ms (champion: evolve(latency s1.v0))
 Pattern: MAX_INFLIGHT_APPEND_ENTRIES: u32 = <N>
 Effect:  higher → deeper replication pipelining → more throughput
 Range:   5 (default) to ~30; diminishing returns after 20
+Current: 10 (champion: stage 1 latency)
 ```
 
 ### 3. APPEND_ENTRIES_BATCH_SIZE_MAX — `helix-raft/src/lib.rs`
@@ -192,3 +193,4 @@ minimal and targeted — do not refactor unrelated code.
 ## Champion History
 
 - Stage 1 (latency): evolve(latency s1.v0): Reduced batcher default linger_ms from 9ms to 2ms in BatcherConfig::default() to decrease tail latency by cutting worst-case batching delay by 7ms → +97.5%
+- Stage 1 (latency): Increased MAX_INFLIGHT_APPEND_ENTRIES from 5 to 10 in helix-raft/src/lib.rs to enable deeper Raft replication pipelining and reduce p95 latency → +87.0%
