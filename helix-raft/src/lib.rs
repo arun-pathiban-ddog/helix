@@ -88,4 +88,13 @@ pub mod limits {
     /// the 28 Gi pod limit. 64 MB at ~1 MB/s per partition = ~64 seconds of
     /// in-memory catch-up window, far exceeding any realistic election timeout.
     pub const LOG_TRAILING_BYTES_MAX_DEFAULT: u64 = 64 * 1024 * 1024; // 64 MB
+
+    /// Number of ticks without response before resetting inflight state.
+    ///
+    /// This handles the case where a follower crashes and recovers, or
+    /// experiences a transient delay (GC pause, network hiccup). Resetting
+    /// inflight state allows pipelining to resume sooner.
+    ///
+    /// At 100ms/tick, 10 ticks = ~1 second recovery time.
+    pub const INFLIGHT_TIMEOUT_TICKS: u32 = 10;
 }

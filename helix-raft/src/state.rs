@@ -67,10 +67,6 @@ struct ReplicationState {
     recent_active: bool,
 }
 
-/// Number of ticks without response before resetting inflight state.
-/// This handles the case where a follower crashes and recovers.
-const INFLIGHT_TIMEOUT_TICKS: u32 = 20;
-
 impl ReplicationState {
     /// Creates new replication state with the given `next_index`.
     const fn new(next_index: LogIndex) -> Self {
@@ -566,7 +562,7 @@ impl RaftNode {
         for state in self.replication_state.values_mut() {
             if state.inflight_count > 0 {
                 state.inflight_stale_ticks += 1;
-                if state.inflight_stale_ticks >= INFLIGHT_TIMEOUT_TICKS {
+                if state.inflight_stale_ticks >= limits::INFLIGHT_TIMEOUT_TICKS {
                     // Assume inflight requests are lost. Reset state.
                     state.inflight_count = 0;
                     state.inflight_stale_ticks = 0;
