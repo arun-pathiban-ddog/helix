@@ -89,7 +89,7 @@ pub const MAX_RECORDS_PER_WRITE: usize = 1000;
 pub const MAX_BYTES_PER_READ: u32 = 1024 * 1024;
 
 /// Tick interval in milliseconds.
-pub const TICK_INTERVAL_MS: u64 = 50;
+pub const TICK_INTERVAL_MS: u64 = 25;
 
 /// Heartbeat interval in milliseconds (re-exported for DST use).
 #[allow(unused_imports)]
