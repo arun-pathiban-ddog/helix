@@ -743,7 +743,7 @@ pub struct PartitionBatchConfig {
 impl Default for PartitionBatchConfig {
     fn default() -> Self {
         Self {
-            linger_ms: 1,
+            linger_ms: 5,
             max_batch_bytes: 4 * 1024 * 1024,
             max_batch_requests: 1000,
             max_pending_bytes: 25 * 1024 * 1024,
