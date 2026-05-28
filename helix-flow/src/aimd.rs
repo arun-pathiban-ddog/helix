@@ -103,6 +103,11 @@ impl AimdConfig {
 impl Default for AimdConfig {
     fn default() -> Self {
         Self::new(1000, 100, 100_000)
+            // Use a less aggressive decrease factor (0.7 vs 0.5) to maintain
+            // higher throughput during transient congestion. Combined with
+            // the 100ms latency threshold, this allows the system to recover
+            // more smoothly without over-correcting on brief latency spikes.
+            .with_multiplicative_decrease(0.7)
     }
 }
 
