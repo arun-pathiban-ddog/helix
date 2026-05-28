@@ -15,7 +15,7 @@
 //! requests until either:
 //! - The linger timeout expires (default: 5ms)
 //! - The batch reaches max size (default: 64KB)
-//! - The batch reaches max requests (default: 1000)
+//! - The batch reaches max requests (default: 2000)
 //!
 //! The batch is then proposed to Raft as a single `AppendBlobBatch` entry.
 //! When committed, the tick task notifies each waiter with their assigned offset.
@@ -92,7 +92,10 @@ impl Default for BatcherConfig {
             // to allow server-side batching of multiple producer requests.
             // Too small = each producer batch becomes separate Raft proposal.
             max_batch_bytes: 4 * 1024 * 1024, // 4MB
-            max_batch_requests: 1000,
+            // Allow up to 2000 requests per batch to maximize coalescing during burst load.
+            // This matches MAX_PENDING_REQUESTS and lets more requests be combined per Raft proposal,
+            // reducing consensus overhead. The 4MB max_batch_bytes still provides a hard cap.
+            max_batch_requests: 2000,
         }
     }
 }
