@@ -747,7 +747,7 @@ impl Default for PartitionBatchConfig {
             max_batch_bytes: 4 * 1024 * 1024,
             max_batch_requests: 1000,
             max_pending_bytes: 25 * 1024 * 1024,
-            max_pending_requests: 500,
+            max_pending_requests: 1000,
         }
     }
 }
