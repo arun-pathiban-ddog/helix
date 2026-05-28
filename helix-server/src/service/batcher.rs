@@ -91,7 +91,8 @@ impl Default for BatcherConfig {
             // Must be larger than typical client batches (rdkafka batch.size=512KB)
             // to allow server-side batching of multiple producer requests.
             // Too small = each producer batch becomes separate Raft proposal.
-            max_batch_bytes: 4 * 1024 * 1024, // 4MB
+            // 8MB allows more coalescing to reduce Raft proposal count.
+            max_batch_bytes: 8 * 1024 * 1024, // 8MB
             max_batch_requests: 1000,
         }
     }
