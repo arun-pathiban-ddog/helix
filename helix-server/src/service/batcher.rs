@@ -13,7 +13,7 @@
 //!
 //! Each producer request is submitted to the batcher. The batcher accumulates
 //! requests until either:
-//! - The linger timeout expires (default: 5ms)
+//! - The linger timeout expires (default: 2ms)
 //! - The batch reaches max size (default: 64KB)
 //! - The batch reaches max requests (default: 1000)
 //!
@@ -65,7 +65,7 @@ const MAX_PENDING_BYTES: u64 = 100 * 1024 * 1024;
 #[derive(Debug, Clone)]
 pub struct BatcherConfig {
     /// Maximum time to wait for additional requests before flushing (milliseconds).
-    /// Default: 1ms - minimal wait since clients already batch with linger.ms.
+    /// Default: 2ms - low linger for reduced tail latency while allowing some coalescing.
     pub linger_ms: u64,
     /// Maximum total bytes in a batch before forcing flush.
     /// Default: 64KB - balanced for typical workloads.
@@ -81,7 +81,7 @@ impl Default for BatcherConfig {
         let linger_ms = std::env::var("HELIX_BATCHER_LINGER_MS")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(5);
+            .unwrap_or(2);
 
         Self {
             // 1ms minimal linger: clients already batch, so server-side linger
