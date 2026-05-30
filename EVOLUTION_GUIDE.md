@@ -93,6 +93,41 @@ CAUTION: too permissive → producer overload → replication lag spike
 
 ---
 
+## Structural / Algorithmic Changes (ENCOURAGED — not just parameter tuning)
+
+The "Known Performance Levers" above are the *easy* wins (tuning a single constant).
+They are largely exhausted. To keep improving, you SHOULD also propose **structural
+and algorithmic** changes inside the EVOLVE-SAFE files — these often unlock larger,
+more durable gains than nudging a number. Treat the constants as a fallback, not the
+default.
+
+Examples of the *kind* of change to consider (illustrative, not a checklist):
+- **Data-structure swaps** — e.g. replace a linear scan / `Vec` lookup in the produce
+  or replication hot path with a hashmap/index; use a ring buffer instead of repeated
+  allocation; intern repeated keys.
+- **Algorithmic restructuring** — e.g. coalesce/merge work that is currently done
+  per-message into per-batch; change the batcher flush from a fixed timer to an
+  adaptive/event-driven trigger; pipeline a step that is currently serial.
+- **Reducing syscalls / copies / allocations** — e.g. reuse buffers across requests,
+  vectorize writes, avoid an intermediate copy in the encode/decode path.
+- **Concurrency-shape changes** — e.g. move a blocking step off the request path,
+  batch lock acquisitions, replace a per-request lock with a sharded one.
+
+Rules for structural changes:
+- Stay within the EVOLVE-SAFE file list. A cohesive change MAY span several
+  EVOLVE-SAFE files if they belong to the same mechanism.
+- The WAL `sync()` invariant and the `helix-runtime` / INVARIANT files still apply.
+- It must still pass the WAL durability DST and `cargo check -p helix-server`.
+- Prefer one cohesive structural change over a scattershot refactor — keep the diff
+  reviewable and tied to a single named mechanism.
+
+When you form a hypothesis, deliberately vary the *class* of change across variants:
+do not propose another constant tweak if the last few attempts were all constant
+tweaks. Check the Champion History below — if it is dominated by parameter changes,
+that is a signal to try a structural/algorithmic one next.
+
+---
+
 ## Control Plane Mutations (also allowed)
 
 Alongside code changes, you may also propose **queue topology changes** using the
@@ -185,8 +220,12 @@ leave `edits` empty, and populate `control_plane`:
 }
 ```
 
-Only ONE cohesive change per response. If you propose a code change, make it
-minimal and targeted — do not refactor unrelated code.
+Only ONE cohesive change per response, tied to a single named mechanism. The change
+may be a parameter tweak OR a structural/algorithmic change (see "Structural /
+Algorithmic Changes" above) — the latter is encouraged when the parameter levers are
+exhausted. "Cohesive" does not mean "one line": a structural change may touch several
+EVOLVE-SAFE files if they implement the same mechanism. Do not refactor code unrelated
+to your hypothesis.
 
 ---
 
