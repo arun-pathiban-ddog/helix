@@ -863,6 +863,8 @@ pub fn spawn_partition_actor_shared_with_batch_config(
 #[derive(Debug, Clone, Copy)]
 enum FlushReason {
     Linger,
+    /// Immediate flush because proposals are already in-flight (pipelining).
+    Pipeline,
     Size,
     Shutdown,
 }
@@ -871,6 +873,7 @@ impl FlushReason {
     const fn as_str(self) -> &'static str {
         match self {
             Self::Linger => "linger",
+            Self::Pipeline => "pipeline",
             Self::Size => "size",
             Self::Shutdown => "shutdown",
         }
@@ -1021,12 +1024,24 @@ impl PartitionActorShared {
         let mut linger_active = false;
 
         loop {
-            // Arm the linger timer when the first request arrives.
+            // Arm the linger timer when the first request arrives, but skip
+            // linger entirely if there are already proposals in-flight in Raft.
+            // When Raft is busy processing prior proposals, the dominant latency
+            // is waiting for consensus (AppendEntries round-trips). Adding a
+            // linger delay on top of that is wasteful — flush immediately to
+            // pipeline the next batch through Raft.
             if !linger_active && !self.pending_batch.is_empty() {
-                linger_sleep.as_mut().reset(
-                    tokio::time::Instant::now() + linger_dur,
-                );
-                linger_active = true;
+                if !self.batch_pending_proposals.is_empty() {
+                    // Proposals in-flight: flush immediately to pipeline through Raft.
+                    self.flush_pending_batch(FlushReason::Pipeline).await;
+                    // linger_active stays false; will re-check next iteration.
+                } else {
+                    // No proposals in-flight: arm the linger timer.
+                    linger_sleep.as_mut().reset(
+                        tokio::time::Instant::now() + linger_dur,
+                    );
+                    linger_active = true;
+                }
             }
 
             tokio::select! {
